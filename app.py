@@ -149,7 +149,7 @@ else:
             y = altura - margin
 
             # LOGO
-            logo_path = os.path.join(os.getcwd(), "unifsa.png")
+            logo_path = os.path.join(os.getcwd(), "unifsa_logo_pdf.png")
             if os.path.exists(logo_path):
                 c.drawImage(logo_path, margin, y-3*cm, width=4*cm, preserveAspectRatio=True)
             else:
