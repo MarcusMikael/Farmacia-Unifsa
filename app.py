@@ -96,11 +96,12 @@ with abaDiario:
             df2 = pd.concat([df2, novo2], ignore_index=True)
             df2.to_csv("diario.csv", index=False)
 
+        
             supabase.table("diario").insert({
                 "nome_estagiario": nome_d,
                 "data": str(data_d),
                 "atividade": atividade,
-                "assinatura_sup": assinatura_sup2
+                "assinatura_supervisor": assinatura_sup2
             }).execute()
 
             st.success("✅ Registro salvo com sucesso!")
@@ -110,13 +111,9 @@ with abaDiario:
     st.dataframe(df2)
 
 # ==================== GERAR PDF (POR ESTAGIÁRIO) =====================
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.units import cm
-import io
 
 st.divider()
-st.subheader("📄 Impressão do Controle Estagiário")
+st.subheader("📄 Impressão do Controle Estagiário (Frequência)")
 
 df_all = pd.read_csv("frequencia.csv") if os.path.exists("frequencia.csv") else pd.DataFrame()
 
@@ -148,24 +145,18 @@ else:
             margin = 2*cm
             y = altura - margin
 
-            # LOGO
             logo_path = os.path.join(os.getcwd(), "unifsa_logo_pdf.png")
             if os.path.exists(logo_path):
                 c.drawImage(logo_path, margin, y-3*cm, width=4*cm, preserveAspectRatio=True)
-            else:
-                st.warning("⚠️ Logo não encontrada.")
 
-            # Cabeçalho oficial
             c.setFont("Helvetica-Bold", 11)
             c.drawCentredString(largura/2, y-0.3*cm, "ASSOCIAÇÃO TERESINENSE DE ENSINO S/C LTDA – ATE")
             c.drawCentredString(largura/2, y-1.0*cm, "CENTRO UNIVERSITÁRIO SANTO AGOSTINHO – UNIFSA")
             c.drawCentredString(largura/2, y-1.7*cm, "COORDENAÇÃO DO CURSO DE FARMÁCIA")
 
-            # Título
             c.setFont("Helvetica-Bold", 14)
             c.drawCentredString(largura/2, y-3.3*cm, "CONTROLE DE FREQUÊNCIA")
 
-            # Dados do aluno
             c.setFont("Helvetica", 11)
             y -= 5*cm
             c.drawString(margin, y, f"Local do Estágio: Farmácia Escola UNIFSA")
@@ -174,7 +165,6 @@ else:
             y -= 0.7*cm
             c.drawString(margin, y, f"Período do Estágio: {periodo}")
 
-            # Cabeçalho da tabela
             y -= 1.5*cm
             c.setFont("Helvetica-Bold", 10)
             c.drawString(margin, y, "Data")
@@ -183,8 +173,8 @@ else:
             c.drawString(margin+9*cm, y, "Horas")
             c.drawString(margin+11*cm, y, "Ass. Estagiário")
             c.drawString(margin+15*cm, y, "Ass. Supervisor")
-            y -= 0.5*cm
 
+            y -= 0.5*cm
             c.setFont("Helvetica", 10)
 
             for _, row in df_est.iterrows():
@@ -200,13 +190,11 @@ else:
                     c.showPage()
                     y = altura - margin
 
-            # Assinaturas
             y = 3*cm
             c.drawString(margin, y, "Assinatura do Supervisor: ______________________________")
             y -= 1*cm
             c.drawString(margin, y, "Assinatura do Professor: ______________________________")
 
-            # Endereço
             c.setFont("Helvetica-Oblique", 8)
             c.drawCentredString(largura/2, 1.5*cm, "Av. Barão de Gurguéia, 2636 - São Pedro, Teresina - PI, 64019-352")
 
@@ -220,4 +208,65 @@ else:
                 mime="application/pdf"
             )
 
+# ==================== GERAR PDF DO DIÁRIO DE CAMPO =====================
 
+st.divider()
+st.subheader("📘 Impressão do Diário de Campo")
+
+df_diario_all = pd.read_csv("diario.csv") if os.path.exists("diario.csv") else pd.DataFrame()
+
+if df_diario_all.empty:
+    st.warning("Nenhum registro encontrado para gerar PDF.")
+else:
+    nomes_diario = sorted(df_diario_all["Nome"].dropna().unique().tolist())
+    aluno_diario = st.selectbox("Selecione o estagiário:", ["-- selecionar --"] + nomes_diario)
+
+    if aluno_diario != "-- selecionar --":
+        df_diario_est = df_diario_all[df_diario_all["Nome"] == aluno_diario].copy()
+
+        if st.button("🖨️ Gerar PDF do Diário de Campo"):
+            buffer = io.BytesIO()
+            c = canvas.Canvas(buffer, pagesize=A4)
+
+            largura, altura = A4
+            margin = 2*cm
+            y = altura - margin
+
+            c.setFont("Helvetica-Bold", 12)
+            c.drawCentredString(largura/2, y, "DIÁRIO DE CAMPO - FARMÁCIA ESCOLA UNIFSA")
+            y -= 1*cm
+
+            c.setFont("Helvetica", 11)
+            c.drawString(margin, y, f"Nome do Estagiário: {aluno_diario}")
+            y -= 1.2*cm
+
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(margin, y, "Data")
+            c.drawString(margin+3.5*cm, y, "Atividade")
+            c.drawString(margin+14*cm, y, "Ass. Supervisor")
+            y -= 0.5*cm
+
+            c.setFont("Helvetica", 10)
+
+            for _, row in df_diario_est.iterrows():
+                c.drawString(margin, y, str(row["Data"]))
+                c.drawString(margin+3.5*cm, y, str(row["Atividade"])[:50])
+                c.drawString(margin+14*cm, y, str(row["Assinatura Supervisor"]))
+                y -= 0.7*cm
+
+                if y < 3*cm:
+                    c.showPage()
+                    y = altura - margin
+
+            y = 3*cm
+            c.drawString(margin, y, "Assinatura do Supervisor: ______________________________")
+
+            c.save()
+            buffer.seek(0)
+
+            st.download_button(
+                label="📥 Baixar Diário de Campo (PDF)",
+                data=buffer,
+                file_name=f"diario_campo_{aluno_diario.replace(' ','_')}.pdf",
+                mime="application/pdf"
+            )
