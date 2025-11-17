@@ -1,6 +1,6 @@
-streamlit
-pandas
-python-dotenv
-reportlab
-supabase
-plotly
+streamlit==1.39.0
+pandas==2.2.2
+python-dotenv==1.0.1
+supabase==2.4.6
+reportlab==4.2.2
+plotly==5.22.0
