@@ -332,24 +332,10 @@ with abaDiario:
 
 with abaAnalise:
 
-    # CARREGAR DADOS (SUPABASE NO DEPLOY / CSV NO LOCAL)
+    # CARREGAR DADOS DE FREQUÊNCIA (SUPABASE NO DEPLOY / CSV NO LOCAL)
     try:
-        # Tentativa de carregar do Supabase
-        data_supabase = supabase.table("frequencia").select("*").execute()
-        df = pd.DataFrame(data_supabase.data)
-        
-        df = df.rename(columns={
-            "nome_estagiario": "Nome",
-            "data": "Data",
-            "horario_entrada": "Entrada",
-            "horario_saida": "Saída",
-            "frequencia_horas": "Horas",
-            "assinatura_estagiario": "Assinatura Estagiário",
-            "assinatura_supervisor": "Assinatura Supervisor"
-        })
-
+        df = carregar_frequencia()
     except:
-        # Caso esteja local/offline
         df = pd.read_csv("frequencia.csv")
 
     # Caso esteja vazio
@@ -380,11 +366,17 @@ with abaAnalise:
 
         total_horas = df["Horas"].sum()
         media_horas = df["Horas"].mean()
-        maior = df.loc[df["Horas"].idxmax(), "Nome"] if not df.empty else "—"
+        maior = df.loc[df["Horas"].idxmax(), "Nome"]
         maior_soma = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmax(), "Nome"]
 
-        st.markdown(f"<p style='font-size:26px;'><b>Total de horas registradas:</b> {total_horas:.1f} h</p>", unsafe_allow_html=True)
-        st.markdown(f"<p style='font-size:26px;'><b>Média de horas por registro:</b> {media_horas:.2f} h</p>", unsafe_allow_html=True)
+        st.markdown(
+            f"<p style='font-size:26px;'><b>Total de horas registradas:</b> {total_horas:.1f} h</p>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f"<p style='font-size:26px;'><b>Média de horas por registro:</b> {media_horas:.2f} h</p>",
+            unsafe_allow_html=True
+        )
         st.write(f"**Estagiário com mais horas(dia):** {maior}")
         st.write(f"**Estagiário com mais horas registradas(soma):** {maior_soma}")
 
@@ -393,7 +385,7 @@ with abaAnalise:
     st.subheader("Storytelling com Dados")
 
     if not df.empty:
-        total_horas = df["Horas"].sum() 
+        total_horas = df["Horas"].sum()
         media_horas = df["Horas"].mean()
 
         # Total por aluno
@@ -407,28 +399,29 @@ with abaAnalise:
         num_alunos = horas_por_estagiario["Nome"].nunique()
 
         # Frases automáticas
-        st.write(f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, distribuídas entre **{num_alunos} estagiários.**")
-        st.write(f" **Média de frequência:** Cada registro representa em média **{media_horas:.2f} horas.**")
-        st.write(f" **Mais ativo:** {mais_ativo['Nome']} realizou **{mais_ativo['Horas']:.1f} horas**, sendo o aluno com maior carga de estágio.")
-        st.write(f" **Menor carga:** {menos_ativo['Nome']} tem **{menos_ativo['Horas']:.1f} horas** registradas até o momento.")
+        st.write(
+            f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, "
+            f"distribuídas entre **{num_alunos} estagiários.**"
+        )
+        st.write(
+            f" **Média de frequência:** Cada registro representa em média **{media_horas:.2f} horas.**"
+        )
+        st.write(
+            f" **Mais ativo:** {mais_ativo['Nome']} realizou **{mais_ativo['Horas']:.1f} horas**, sendo o aluno com maior carga de estágio."
+        )
+        st.write(
+            f" **Menor carga:** {menos_ativo['Nome']} tem **{menos_ativo['Horas']:.1f} horas** registradas até o momento."
+        )
     else:
         st.info("Nenhum dado disponível para gerar os insights ainda.")
-
 
     # ======================= ANÁLISE DOS SUPERVISORES (DIÁRIO DE CAMPO) =======================
     st.markdown("---")
     st.markdown("###  Análise de Supervisores (Diário de Campo)")
 
-    # Carregar dados do diário
+    # Carregar dados do diário (SUPABASE NO DEPLOY / CSV NO LOCAL)
     try:
-        data_diario = supabase.table("diario").select("*").execute()
-        df_diario = pd.DataFrame(data_diario.data)
-        df_diario = df_diario.rename(columns={
-            "nome_estagiario": "Nome",
-            "data": "Data",
-            "atividade": "Atividade",
-            "assinatura_supervisor": "Assinatura Supervisor"
-        })
+        df_diario = carregar_diario()
     except:
         df_diario = pd.read_csv("diario.csv")
 
@@ -454,4 +447,6 @@ with abaAnalise:
 
         # Insight automático
         mais_ativo = diarios_por_supervisor.iloc[0]
-        st.success(f" O supervisor **{mais_ativo['Supervisor']}** validou **{mais_ativo['Total_Diarios']}** diários — o mais ativo até agora!")
+        st.success(
+            f" O supervisor **{mais_ativo['Supervisor']}** validou **{mais_ativo['Total_Diarios']}** diários — o mais ativo até agora!"
+        )
