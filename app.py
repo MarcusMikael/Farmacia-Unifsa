@@ -26,6 +26,50 @@ else:
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+# ======================= FUNÇÕES PARA CARREGAR DADOS (LOCAL OU DEPLOY) =======================
+
+def carregar_frequencia():
+    if os.path.exists("frequencia.csv"):
+        return pd.read_csv("frequencia.csv")
+    else:
+        dados = supabase.table("frequencia").select("*").execute().data
+        if not dados:
+            return pd.DataFrame(columns=[
+                "Nome", "Data", "Entrada", "Saída", "Horas",
+                "Assinatura Estagiário", "Assinatura Supervisor"
+            ])
+        df = pd.DataFrame(dados)
+        df = df.rename(columns={
+            "nome_estagiario": "Nome",
+            "data": "Data",
+            "horario_entrada": "Entrada",
+            "horario_saida": "Saída",
+            "frequencia_horas": "Horas",
+            "assinatura_estagiario": "Assinatura Estagiário",
+            "assinatura_supervisor": "Assinatura Supervisor"
+        })
+        return df
+
+
+def carregar_diario():
+    if os.path.exists("diario.csv"):
+        return pd.read_csv("diario.csv")
+    else:
+        dados = supabase.table("diario").select("*").execute().data
+        if not dados:
+            return pd.DataFrame(columns=[
+                "Nome", "Data", "Atividade", "Assinatura Supervisor"
+            ])
+        df = pd.DataFrame(dados)
+        df = df.rename(columns={
+            "nome_estagiario": "Nome",
+            "data": "Data",
+            "atividade": "Atividade",
+            "assinatura_supervisor": "Assinatura Supervisor"
+        })
+        return df
+
+
 # ======================= CONFIGURAÇÃO STREAMLIT =======================
 
 st.set_page_config(page_title="Estágio Farmácia - UNIFSA", layout="wide")
@@ -48,6 +92,7 @@ if not os.path.exists("diario.csv"):
 
 abaFrequencia, abaDiario, abaAnalise = st.tabs([" Controle de Frequência", " Diário de Campo", "Analises dos Alunos"])
 
+
 # ======================= FREQUÊNCIA =======================
 
 with abaFrequencia:
@@ -65,7 +110,7 @@ with abaFrequencia:
 
         if enviar:
             # Salva CSV
-            df = pd.read_csv("frequencia.csv")
+            df = carregar_frequencia()
             novo = pd.DataFrame([[nome, data, entrada, saida, horas, assinatura_est, assinatura_sup]], columns=df.columns)
             df = pd.concat([df, novo], ignore_index=True)
             df.to_csv("frequencia.csv", index=False)
@@ -84,14 +129,16 @@ with abaFrequencia:
             st.success("✅ Registro salvo com sucesso!")
 
     st.divider()
-    df = pd.read_csv("frequencia.csv")
+    df = carregar_frequencia()
     st.dataframe(df)
-    # ==================== GERAR PDF (POR ESTAGIÁRIO) =====================
+
+
+# ==================== GERAR PDF (POR ESTAGIÁRIO) =====================
 
     st.divider()
     st.subheader(" Impressão do Controle Estagiário (Frequência)")
 
-    df_all = pd.read_csv("frequencia.csv") if os.path.exists("frequencia.csv") else pd.DataFrame()
+    df_all = carregar_frequencia()
 
     if df_all.empty:
         st.warning("Nenhum registro encontrado para gerar PDF.")
@@ -182,7 +229,8 @@ with abaFrequencia:
                     data=buffer,
                     file_name=f"controle_frequencia_{selecionado.replace(' ','_')}.pdf",
                     mime="application/pdf"
-            )
+                )
+
 
 # ======================= DIÁRIO DE CAMPO =======================
 
@@ -197,12 +245,11 @@ with abaDiario:
         enviar2 = st.form_submit_button("Salvar Registro")
 
         if enviar2:
-            df2 = pd.read_csv("diario.csv")
+            df2 = carregar_diario()
             novo2 = pd.DataFrame([[nome_d, data_d, atividade, assinatura_sup2]], columns=df2.columns)
             df2 = pd.concat([df2, novo2], ignore_index=True)
             df2.to_csv("diario.csv", index=False)
 
-        
             supabase.table("diario").insert({
                 "nome_estagiario": nome_d,
                 "data": str(data_d),
@@ -213,13 +260,16 @@ with abaDiario:
             st.success("✅ Registro salvo com sucesso!")
 
     st.divider()
-    df2 = pd.read_csv("diario.csv")
+    df2 = carregar_diario()
     st.dataframe(df2)
-    # ==================== GERAR PDF DO DIÁRIO DE CAMPO =====================
+
+
+# ==================== GERAR PDF DO DIÁRIO DE CAMPO =====================
+
     st.divider()
     st.subheader("📘 Impressão do Diário de Campo")
 
-    df_diario_all = pd.read_csv("diario.csv") if os.path.exists("diario.csv") else pd.DataFrame()
+    df_diario_all = carregar_diario()
 
     if df_diario_all.empty:
         st.warning("Nenhum registro encontrado para gerar PDF.")
@@ -275,25 +325,27 @@ with abaDiario:
                     data=buffer,
                     file_name=f"diario_campo_{aluno_diario.replace(' ','_')}.pdf",
                     mime="application/pdf"
-            )
+                )
+
+
 # ======================= Analises =======================
+
 with abaAnalise:
-    # Carregar dados
-    df = pd.read_csv("frequencia.csv")
-    # Caso esteja vazio
+
+    df = carregar_frequencia()
+
     if df.empty:
         st.warning("Nenhum dado de frequência encontrado.")
     else:
-        # Garantir tipos corretos
         df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
         df["Horas"] = pd.to_numeric(df["Horas"], errors="coerce")
 
-        # Gráfico de barras - total de horas por estagiário 
         st.markdown("### Total de Horas por Estagiário")
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
         st.bar_chart(horas_por_estagiario.set_index("Nome"))
-        st.divider() 
-        # Gráfico de pizza - proporção total
+
+        st.divider()
+
         st.markdown("### Proporção de Horas Totais por Estagiário")
 
         import plotly.express as px
@@ -302,6 +354,7 @@ with abaAnalise:
                      values="Horas",
                      title="Distribuição das Horas de Estágio")
         st.plotly_chart(fig, use_container_width=True)
+
         total_horas = df["Horas"].sum()
         media_horas = df["Horas"].mean()
         maior = df.loc[df["Horas"].idxmax(), "Nome"] if not df.empty else "—"
@@ -312,6 +365,7 @@ with abaAnalise:
         st.write(f"**Estagiário com mais horas(dia):** {maior}")
         st.write(f"**Estagiário com mais horas registradas(soma):** {maior_soma}")
 
+
 # ======================= STORYTELLING COM DADOS =======================
 
     st.markdown("---")
@@ -320,18 +374,11 @@ with abaAnalise:
     if not df.empty:
         total_horas = df["Horas"].sum() 
         media_horas = df["Horas"].mean()
-
-        # Total por aluno
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
-
-        # Aluno com mais e menos horas
         mais_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmax()]
         menos_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmin()]
-
-        # Número total de alunos
         num_alunos = horas_por_estagiario["Nome"].nunique()
 
-        # Frases automáticas
         st.write(f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, distribuídas entre **{num_alunos} estagiários.**")
         st.write(f" **Média de frequência:** Cada registro representa em média **{media_horas:.2f} horas.**")
         st.write(f" **Mais ativo:** {mais_ativo['Nome']} realizou **{mais_ativo['Horas']:.1f} horas**, sendo o aluno com maior carga de estágio.")
@@ -339,17 +386,17 @@ with abaAnalise:
     else:
         st.info("Nenhum dado disponível para gerar os insights ainda.")
 
-    # ======================= ANÁLISE DOS SUPERVISORES (DIÁRIO DE CAMPO) =======================
+
+    # ======================= ANÁLISE DOS SUPERVISORES =======================
+
     st.markdown("---")
     st.markdown("###  Análise de Supervisores (Diário de Campo)")
 
-    # Carregar dados do diário
-    df_diario = pd.read_csv("diario.csv")
+    df_diario = carregar_diario()
 
     if df_diario.empty:
         st.info("Nenhum registro de diário encontrado para análise.")
     else:
-        # Contar quantos diários cada supervisor assinou
         diarios_por_supervisor = df_diario["Assinatura Supervisor"].value_counts().reset_index()
         diarios_por_supervisor.columns = ["Supervisor", "Total_Diarios"]
 
@@ -368,7 +415,5 @@ with abaAnalise:
         fig_sup.update_traces(textposition="outside")
         st.plotly_chart(fig_sup, use_container_width=True)
 
-        # Insight automático
         mais_ativo = diarios_por_supervisor.iloc[0]
         st.success(f" O supervisor **{mais_ativo['Supervisor']}** validou **{mais_ativo['Total_Diarios']}** diários — o mais ativo até agora!")
-
