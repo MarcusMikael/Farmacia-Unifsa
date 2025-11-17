@@ -332,27 +332,50 @@ with abaDiario:
 
 with abaAnalise:
 
-    df = carregar_frequencia()
+    # CARREGAR DADOS (SUPABASE NO DEPLOY / CSV NO LOCAL)
+    try:
+        # Tentativa de carregar do Supabase
+        data_supabase = supabase.table("frequencia").select("*").execute()
+        df = pd.DataFrame(data_supabase.data)
+        
+        df = df.rename(columns={
+            "nome_estagiario": "Nome",
+            "data": "Data",
+            "horario_entrada": "Entrada",
+            "horario_saida": "Saída",
+            "frequencia_horas": "Horas",
+            "assinatura_estagiario": "Assinatura Estagiário",
+            "assinatura_supervisor": "Assinatura Supervisor"
+        })
 
+    except:
+        # Caso esteja local/offline
+        df = pd.read_csv("frequencia.csv")
+
+    # Caso esteja vazio
     if df.empty:
         st.warning("Nenhum dado de frequência encontrado.")
     else:
+        # Garantir tipos corretos
         df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
         df["Horas"] = pd.to_numeric(df["Horas"], errors="coerce")
 
+        # Gráfico de barras - total de horas por estagiário 
         st.markdown("### Total de Horas por Estagiário")
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
         st.bar_chart(horas_por_estagiario.set_index("Nome"))
+        st.divider() 
 
-        st.divider()
-
+        # Gráfico de pizza - proporção total
         st.markdown("### Proporção de Horas Totais por Estagiário")
 
         import plotly.express as px
-        fig = px.pie(horas_por_estagiario,
-                     names="Nome",
-                     values="Horas",
-                     title="Distribuição das Horas de Estágio")
+        fig = px.pie(
+            horas_por_estagiario,
+            names="Nome",
+            values="Horas",
+            title="Distribuição das Horas de Estágio"
+        )
         st.plotly_chart(fig, use_container_width=True)
 
         total_horas = df["Horas"].sum()
@@ -365,20 +388,25 @@ with abaAnalise:
         st.write(f"**Estagiário com mais horas(dia):** {maior}")
         st.write(f"**Estagiário com mais horas registradas(soma):** {maior_soma}")
 
-
-# ======================= STORYTELLING COM DADOS =======================
-
+    # ======================= STORYTELLING COM DADOS =======================
     st.markdown("---")
     st.subheader("Storytelling com Dados")
 
     if not df.empty:
         total_horas = df["Horas"].sum() 
         media_horas = df["Horas"].mean()
+
+        # Total por aluno
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
+
+        # Aluno com mais e menos horas
         mais_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmax()]
         menos_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmin()]
+
+        # Número total de alunos
         num_alunos = horas_por_estagiario["Nome"].nunique()
 
+        # Frases automáticas
         st.write(f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, distribuídas entre **{num_alunos} estagiários.**")
         st.write(f" **Média de frequência:** Cada registro representa em média **{media_horas:.2f} horas.**")
         st.write(f" **Mais ativo:** {mais_ativo['Nome']} realizou **{mais_ativo['Horas']:.1f} horas**, sendo o aluno com maior carga de estágio.")
@@ -387,12 +415,22 @@ with abaAnalise:
         st.info("Nenhum dado disponível para gerar os insights ainda.")
 
 
-    # ======================= ANÁLISE DOS SUPERVISORES =======================
-
+    # ======================= ANÁLISE DOS SUPERVISORES (DIÁRIO DE CAMPO) =======================
     st.markdown("---")
     st.markdown("###  Análise de Supervisores (Diário de Campo)")
 
-    df_diario = carregar_diario()
+    # Carregar dados do diário
+    try:
+        data_diario = supabase.table("diario").select("*").execute()
+        df_diario = pd.DataFrame(data_diario.data)
+        df_diario = df_diario.rename(columns={
+            "nome_estagiario": "Nome",
+            "data": "Data",
+            "atividade": "Atividade",
+            "assinatura_supervisor": "Assinatura Supervisor"
+        })
+    except:
+        df_diario = pd.read_csv("diario.csv")
 
     if df_diario.empty:
         st.info("Nenhum registro de diário encontrado para análise.")
@@ -403,7 +441,6 @@ with abaAnalise:
         st.write("#### Quantidade de Diários Validados por Supervisor")
         st.dataframe(diarios_por_supervisor)
 
-        import plotly.express as px
         fig_sup = px.bar(
             diarios_por_supervisor,
             x="Supervisor",
@@ -415,5 +452,6 @@ with abaAnalise:
         fig_sup.update_traces(textposition="outside")
         st.plotly_chart(fig_sup, use_container_width=True)
 
+        # Insight automático
         mais_ativo = diarios_por_supervisor.iloc[0]
         st.success(f" O supervisor **{mais_ativo['Supervisor']}** validou **{mais_ativo['Total_Diarios']}** diários — o mais ativo até agora!")
