@@ -332,11 +332,11 @@ with abaDiario:
 
 with abaAnalise:
 
-    # CARREGAR DADOS DE FREQUÊNCIA (SUPABASE NO DEPLOY / CSV NO LOCAL)
-    try:
-        df = carregar_frequencia()
-    except:
-        df = pd.read_csv("frequencia.csv")
+    # LIMPAR QUALQUER CACHE
+    st.cache_data.clear()
+
+    # Carregar dados independente de deploy/local
+    df = carregar_frequencia().copy()
 
     # Caso esteja vazio
     if df.empty:
@@ -346,13 +346,16 @@ with abaAnalise:
         df["Data"] = pd.to_datetime(df["Data"], errors="coerce")
         df["Horas"] = pd.to_numeric(df["Horas"], errors="coerce")
 
-        # Gráfico de barras - total de horas por estagiário 
-        st.markdown("### Total de Horas por Estagiário")
+        # Total por estagiário
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
-        st.bar_chart(horas_por_estagiario.set_index("Nome"))
-        st.divider() 
 
-        # Gráfico de pizza - proporção total
+        # ==================== GRÁFICO DE BARRAS ====================
+        st.markdown("### Total de Horas por Estagiário")
+
+        st.bar_chart(horas_por_estagiario.set_index("Nome"))
+        st.divider()
+
+        # ==================== GRÁFICO DE PIZZA ====================
         st.markdown("### Proporção de Horas Totais por Estagiário")
 
         import plotly.express as px
@@ -364,23 +367,18 @@ with abaAnalise:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+        # ==================== MÉTRICAS ====================
         total_horas = df["Horas"].sum()
         media_horas = df["Horas"].mean()
-        maior = df.loc[df["Horas"].idxmax(), "Nome"]
+        maior_dia = df.loc[df["Horas"].idxmax(), "Nome"]
         maior_soma = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmax(), "Nome"]
 
-        st.markdown(
-            f"<p style='font-size:26px;'><b>Total de horas registradas:</b> {total_horas:.1f} h</p>",
-            unsafe_allow_html=True
-        )
-        st.markdown(
-            f"<p style='font-size:26px;'><b>Média de horas por registro:</b> {media_horas:.2f} h</p>",
-            unsafe_allow_html=True
-        )
-        st.write(f"**Estagiário com mais horas(dia):** {maior}")
-        st.write(f"**Estagiário com mais horas registradas(soma):** {maior_soma}")
+        st.markdown(f"<p style='font-size:26px;'><b>Total de horas registradas:</b> {total_horas:.1f} h</p>", unsafe_allow_html=True)
+        st.markdown(f"<p style='font-size:26px;'><b>Média de horas por registro:</b> {media_horas:.2f} h</p>", unsafe_allow_html=True)
+        st.write(f"**Estagiário com maior registro diário:** {maior_dia}")
+        st.write(f"**Estagiário com maior soma de horas:** {maior_soma}")
 
-    # ======================= STORYTELLING COM DADOS =======================
+    # ======================= STORYTELLING =======================
     st.markdown("---")
     st.subheader("Storytelling com Dados")
 
@@ -388,42 +386,26 @@ with abaAnalise:
         total_horas = df["Horas"].sum()
         media_horas = df["Horas"].mean()
 
-        # Total por aluno
         horas_por_estagiario = df.groupby("Nome")["Horas"].sum().reset_index()
 
-        # Aluno com mais e menos horas
         mais_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmax()]
         menos_ativo = horas_por_estagiario.loc[horas_por_estagiario["Horas"].idxmin()]
 
-        # Número total de alunos
         num_alunos = horas_por_estagiario["Nome"].nunique()
 
-        # Frases automáticas
-        st.write(
-            f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, "
-            f"distribuídas entre **{num_alunos} estagiários.**"
-        )
-        st.write(
-            f" **Média de frequência:** Cada registro representa em média **{media_horas:.2f} horas.**"
-        )
-        st.write(
-            f" **Mais ativo:** {mais_ativo['Nome']} realizou **{mais_ativo['Horas']:.1f} horas**, sendo o aluno com maior carga de estágio."
-        )
-        st.write(
-            f" **Menor carga:** {menos_ativo['Nome']} tem **{menos_ativo['Horas']:.1f} horas** registradas até o momento."
-        )
+        st.write(f" **Resumo geral:** Foram registrados **{total_horas:.1f} horas** de estágio no total, distribuídas entre **{num_alunos} estagiários.**")
+        st.write(f" **Média por registro:** {media_horas:.2f} horas.")
+        st.write(f" **Mais ativo:** {mais_ativo['Nome']} — **{mais_ativo['Horas']:.1f} horas**.")
+        st.write(f" **Menor carga:** {menos_ativo['Nome']} — **{menos_ativo['Horas']:.1f} horas**.")
     else:
         st.info("Nenhum dado disponível para gerar os insights ainda.")
 
-    # ======================= ANÁLISE DOS SUPERVISORES (DIÁRIO DE CAMPO) =======================
+    # ======================= ANÁLISE SUPERVISORES =======================
     st.markdown("---")
     st.markdown("###  Análise de Supervisores (Diário de Campo)")
 
-    # Carregar dados do diário (SUPABASE NO DEPLOY / CSV NO LOCAL)
-    try:
-        df_diario = carregar_diario()
-    except:
-        df_diario = pd.read_csv("diario.csv")
+    # Carregar diário direto (Supabase ou CSV)
+    df_diario = carregar_diario().copy()
 
     if df_diario.empty:
         st.info("Nenhum registro de diário encontrado para análise.")
@@ -440,13 +422,11 @@ with abaAnalise:
             y="Total_Diarios",
             text="Total_Diarios",
             color="Supervisor",
-            title=" Supervisores que Mais Validaram Diários",
+            title=" Supervisores que Mais Validaram Diários"
         )
         fig_sup.update_traces(textposition="outside")
         st.plotly_chart(fig_sup, use_container_width=True)
 
-        # Insight automático
-        mais_ativo = diarios_por_supervisor.iloc[0]
-        st.success(
-            f" O supervisor **{mais_ativo['Supervisor']}** validou **{mais_ativo['Total_Diarios']}** diários — o mais ativo até agora!"
-        )
+        # Insight
+        mais_ativo_sup = diarios_por_supervisor.iloc[0]
+        st.success(f"O supervisor **{mais_ativo_sup['Supervisor']}** validou **{mais_ativo_sup['Total_Diarios']}** diários — o mais ativo até agora!")
